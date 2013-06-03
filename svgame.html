@@ -1,0 +1,550 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+    <title>svg ball game</title>
+    <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+  </head>
+  
+<body>
+   <!-- onload="initGameSVG()"> -->
+
+
+  <div>
+      <!-- x: <label id="lbx">150</label> y: <label id="lby">150</label> <label id="lbd">aaa</label> -->
+      <!-- <label>--------------------------</label><label class="gameover" style="display:none" id="lbgameOver">GAME OVER!!!</label> -->
+    <p> 
+      <button id='btnAdd'> +1 </button>
+      <button id='btnRemove'> -1 </button>
+      <button id='btnRestart'> restart </button>
+      <button id='btnPause'>pause</button>
+      <label id="brickCount">0</label>
+      <label id="info1">0</label>
+      <label id="info2">0</label>
+    </p>
+  <div>
+    
+  <svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" id="svg">
+    <rect x="1" y="1" width="798" height="598" id="board" />
+    <!-- <circle cx="150" cy="150" r="15" fill="tomato" id="ball0" transform="translate(50, 0)"/> -->
+    <rect x="325" y="580" width="150" height="20" id="paddle" />
+  </svg>
+</body>
+
+  <style>
+    svg text {
+      text-anchor: middle;
+      font: 180px sans-serif;
+    }
+   .ballcap {
+     font: 25px sans-serif;
+    }
+   .gameover {
+      fill: red;
+    }
+   .virtory {
+      fill: yellow;
+    }
+    .balls {
+      stroke: red;
+      stroke-width: 2;
+      fill-opacity: 0.6;
+    }
+    .bullets {
+      stroke: black;
+      stroke-width: 2;
+      fill-opacity: 0.6;
+    }
+    .bricks {
+      stroke: green;
+      stroke-width: 2;
+      fill-opacity: 0.6;
+    }
+    #board {
+      fill: silver;
+      stroke: black;
+      stroke-width: 2;
+      fill-opacity: 0.6;
+    }
+    #paddle {
+      fill: blue;
+      stroke: black;
+      stroke-width: 2;
+      /*fill-opacity: 0.6;*/
+    }
+    #paddlegun {
+      fill: green;
+      stroke: black;
+      stroke-width: 2;
+      /*fill-opacity: 0.6;*/
+    }
+  </style>
+
+  <script>
+    function random(max) {
+      var r = Math.random();
+      if (max) {
+        r = Math.floor(max * r);
+      }
+      return r;
+    }
+
+    function removeDomNode(n) {
+       d3.select(n).remove(); 
+       // var parent = n.parentNode;
+       // if (parent) parent.removeChild(n);
+    }
+  </script>
+
+  <script type="text/javascript">
+    var aWidth = window.screen.width - 50, aHeight = window.screen.height - 200;
+    var colors = ['aqua', 'black', 'blue', 'fuchsia', 'gray', 'green', 'lime', 'maroon',
+                  'navy', 'olive', 'purple', 'red', 'silver', 'teal', 'white', 'yellow']
+    var initBallCount = 3;
+    var brickW = 50, brickH = 20, aWidth = Math.floor(aWidth / (brickW + 4)) * (brickW + 4);
+
+    var boardX, boardY;
+    var paddleW, paddleH, paddleX, paddleY, paddleMove;
+    var paddleGunX, paddleGun = null;
+    var gameLoopTimer;
+    var playStatus = ''; //'playing', 'paused', 'gameover', 'victory';, 
+    var gameOver = true, victory = false, paused = false;
+    var balls = [], liveBallNos = [], bullets = [],  bricks = [];
+    var svg;
+    var d3Ok;
+
+    function initGameSVG() {
+      try {
+        d3Ok = (d3);
+      }
+      catch (err) {
+        d3Ok = false;
+      }
+      if (!d3Ok) {
+        alert('D3 load failure!')
+        return;
+      }
+      svg = d3.select("svg");
+      window.addEventListener('keydown', KeyDown, true);
+      // window.addEventListener('mousemove', mouseMove, true);
+      svg.on('click', mouseClick);
+      svg.on('mousemove', mouseMove);
+      window.addEventListener('dblclick', dblClick, true);
+      btnAdd.onclick = addOneClick;
+      btnRemove.onclick = removeOneClick;
+      btnRestart.onclick = restartClick;
+      btnPause.onclick = pauseClick;
+
+      boardX = aWidth;
+      boardY = aHeight;
+
+      svg.attr("width", aWidth).attr("height", aHeight);
+      board.setAttribute("width", aWidth - 2);
+      board.setAttribute("height", aHeight - 2);
+
+      restart();
+    }
+    initGameSVG();
+
+    function oneBallData(index) {
+      var _x = Math.round(aWidth * random() * 0.8 + 100),
+          _y = Math.round(aHeight * random() * 0.5 + (aHeight / 3)),
+          sp = random(3) + 3,
+          _dx = sp - random(2) * (sp * 2);
+          sp--;
+      var _dy = -sp;
+      index = -1;
+      for (var i = 0; i < liveBallNos.length; i++) {
+        if (!liveBallNos[i]) {
+          index = i;
+          liveBallNos[i] = true;
+          break;
+        }
+      }
+      if (index === -1) {
+        index = liveBallNos.length;
+        liveBallNos[index] = true;
+      }
+      return {
+        no: index, id: 'ball' + index, 
+        x: _x, y: _y, dx: _dx, dy: _dy, 
+        color: colors[random(colors.length)],
+        count: random(20),
+        ball: null, txt: null
+      }
+    }
+
+    function setBulletMovement(bullet, x, y) {
+      bullet.setAttribute('transform', 'translate(' + x + ',' + y + ')');
+    }
+
+    function bulletPoints() {
+      return '0,0 0,-10 5,-15 10,-10 10,0 5,-2 0,0';
+    }
+
+    function newBullet() {
+      if (gameOver) return;
+      bullets.push({
+        x: paddleGunX + paddleX,
+        y: paddleY - 10,
+        dx: 0,
+        dy: -2 - random(4)
+      });
+      svg.append('polygon')
+         .data(bullets.slice(bullets.length - 1))
+         .attr('fill', function(d) {
+            d.bullet = this;
+            this.setAttribute('class', 'bullets');
+            this.setAttribute('points', bulletPoints());
+            setBulletMovement(this, d.x, d.y);
+            // this.setAttribute("stroke", "black");
+            // this.setAttribute("stroke-width", "2px");
+            // this.setAttribute("fill-opacity", 0.6);
+            return colors[Math.abs(d.dy)];
+         });
+    }
+
+    function clearSvgBullets() {
+      svg.selectAll('polygon.bullets').remove();
+    }
+
+    function showGameOver() {
+      svg.selectAll("text.gameover").remove();
+      svg.selectAll("text.virtory").remove();
+      if (victory || gameOver || paused) { 
+        svg.append("text").attr("y", function() {
+          if (paused) {
+            this.textContent = '暂停!!!';
+            this.setAttribute("class", "gameover");
+          } else if (victory) {
+            this.textContent = '胜利!!!' 
+            this.setAttribute("class", "virtory");
+          } else {
+            this.textContent = 'GAME OVER!!!';
+            this.setAttribute("class", "gameover");
+          }
+          this.setAttribute("x", aWidth / 2);
+          return aHeight / 2;
+        });
+      }
+    } 
+
+    function createSvgBalls() {
+      svg.selectAll("circle.balls").remove();
+      svg.selectAll("text.ballcap").data([]).exit().remove();
+      
+      svg.selectAll("circle.balls").data(balls)
+         .enter().append("circle")
+         .attr("fill", function(d, n) { 
+            d.ball = this;
+            this.setAttribute('class', 'balls');
+            this.setAttribute('r', 15);
+            this.setAttribute('cx', d.x);
+            this.setAttribute('cy', d.y);
+            return d.color;
+        });
+
+      showGameOver();
+
+      svg.selectAll("text.ballcap").data(balls)
+         .enter().append("text")
+         .attr("dy", function(d, n) {
+            d.txt = this;
+            this.setAttribute("class", "ballcap");
+            if (d.color === 'white' || d.color === 'silver' || d.color === 'yellow') 
+              this.setAttribute('fill', 'black');
+            else
+              this.setAttribute("fill", "white");
+            this.setAttribute("x", d.x);
+            this.setAttribute("y", d.y);
+            this.textContent = d.no + 1;
+            return '.35em';
+        });
+         // .text(function (d) { return d.no; });    
+    }
+
+    function createSvgBricks() {
+      svg.selectAll('rect.bricks').remove();
+      
+      svg.selectAll('rect.bricks').data(bricks)
+         .enter().append('rect')
+         .attr("x", function(d, n) { 
+            d.brick = this;
+            this.setAttribute('class', 'bricks');
+            this.setAttribute('width', brickW);
+            this.setAttribute('height', brickH);
+            return d.x; })
+         .attr("y", function(d, n) { return d.y; })
+         .attr("fill", function(d) { return d.color; });
+    }
+
+    function restart() {
+      if (!gameOver) return;
+      gameOver = false;
+      victory = false;
+      paused = false;
+
+      paddleW = 150;
+      paddleH = 20;
+      paddleX = (aWidth - paddleW) / 2;
+      paddleY = aHeight - paddleH;
+      paddleMove = 0;
+      paddleGunX = paddleW / 2 - 5;
+      paddle.setAttribute("x", paddleX);
+      paddle.setAttribute("y", paddleY);
+      paddle.setAttribute("height", paddleH);
+      paddle.setAttribute("width", paddleW);
+      if (!paddleGun) {
+        svg.append('polygon').attr('id', function() {
+          paddleGun = this;
+          this.setAttribute('class', 'bulletG');
+          this.setAttribute('points', bulletPoints());
+          setBulletMovement(this, paddleX + paddleGunX, paddleY - 1);
+          return 'paddlegun';
+        });
+      }
+
+      bricks = [];
+      var w = brickW + 4, h = brickH + 4;
+      for (var j = 0; j < 20; j++) {
+        for (var i = 0; i < aWidth / w; i++) {
+          bricks.push({
+            x: i * w + 2, y: j * h + 2, color: 'yellow',
+            yno: j, xno: i, brick: null
+          })
+        }
+      }
+      createSvgBricks();
+
+      liveBallNos = [];
+      balls = [];
+      for (var i = 0; i < initBallCount; i++) {
+        balls.push(oneBallData(i));
+      }
+      createSvgBalls();
+      bullets = [];
+      clearSvgBullets();
+
+      gameLoopTimer = setInterval(moveBalls, 16);
+    }
+
+    function ballDead(ball) {
+      liveBallNos[ball.no] = false;
+      var n = 0;
+      for (var i = liveBallNos.length - 1; i >= 0; i--) {
+        if (liveBallNos[i]) {
+          n = i + 1;
+          break;
+        }
+      }
+      liveBallNos.splice(n);
+      removeDomNode(ball.ball);
+      removeDomNode(ball.txt);
+    }
+
+    function moveOneBall(ball) {
+      var x = ball.x + 15, y = ball.y, y2 = y + 15;  //check if hit bricks
+      for (var i = bricks.length - 1; i >= 0; i--) {
+        brick = bricks[i];
+        if ((x >= brick.x && x <= brick.x + brickW) &&
+            ((y >= brick.y && y <= brick.y + brickH) || (y2 >= brick.y && y2 <= brick.y + brickH))) {
+          removeDomNode(brick.brick);
+          bricks.splice(i, 1);
+        }
+      }
+
+      ball.x += ball.dx; ball.y += ball.dy;
+      ball.ball.setAttribute("cx", ball.x);
+      ball.ball.setAttribute("cy", ball.y);
+      ball.txt.setAttribute("x", ball.x);
+      ball.txt.setAttribute("y", ball.y);
+
+      var rOut = false;  //check if crash to ground
+      if (ball.x + ball.dx > boardX - 15 || ball.x + ball.dx < 15) ball.dx = -ball.dx;
+      if (ball.y + ball.dy < 15) ball.dy = -ball.dy;
+      else if (ball.y + ball.dy > boardY - paddleH - 5) {
+        if (ball.x > paddleX && ball.x < paddleX + paddleW) {  //hit the paddle
+          ball.dy = - Math.abs(ball.dy);
+          ball.x += paddleMove; //random(3) - 1;
+        }
+        else if (ball.y + ball.dy >= boardY) {
+          if (victory)
+            ball.dy = - ball.dy;
+          else {
+            ballDead(ball);
+            rOut = true;
+          }
+        }
+      }
+      return rOut;
+    }
+
+    function moveOneBullet(bullet) {
+      var r = false, ball, x, y, brick;
+
+      x = bullet.x + 5; y = bullet.y - 10;  // check if hit a brick
+      for (var i = bricks.length - 1; i >= 0; i--) {
+        brick = bricks[i];
+        if ((x >= brick.x && x <= brick.x + brickW) &&
+            (y >= brick.y && y <= brick.y + brickH)) {
+          removeDomNode(brick.brick);
+          bricks.splice(i, 1);
+          return true;
+        }
+      }
+
+      x = bullet.x + 5; y = bullet.y - 8;  //check if hit a ball
+      if (y < 5) r = true;
+      for (var i = balls.length - 1; i >= 0; i--) {
+        ball = balls[i];
+        if ((x >= ball.x && x <= ball.x + 30) && (y >= ball.y && y <= ball.y + 30)) {
+          r = true;
+          ballDead(ball);
+          balls.splice(i, 1);
+        }
+      }
+
+      if (!r) {
+        bullet.y += bullet.dy;
+        setBulletMovement(bullet.bullet, bullet.x, bullet.y);
+      }
+      return r;
+    }
+
+    function moveBalls() {
+      if (paused) return;
+      for (var i = balls.length - 1; i >= 0; i--) {
+        if (moveOneBall(balls[i])) {
+          balls.splice(i, 1);
+        }
+      }
+      info2.innerText = balls.length;
+      for (var i = bullets.length - 1; i >= 0; i--) {
+        if (moveOneBullet(bullets[i])) {
+          removeDomNode(bullets[i].bullet);
+          bullets.splice(i, 1);
+        }
+      }
+      brickCount.innerText = bricks.length; 
+      if (victory || gameOver) return;
+      if (bricks.length === 0) {
+        victory = true;
+        // paddleW = aWidth - 2;
+        // paddleX = 1;
+        // paddle.setAttribute("x", paddleX);
+        // paddle.setAttribute("width", paddleW);
+        showGameOver();
+      } else 
+      if (balls.length === 0) {
+        clearInterval(gameLoopTimer);
+        gameOver = true;
+        showGameOver();
+      }        
+    }
+
+    function dblClick(evt) {
+      // if (gameOver) restart();
+    }
+
+    function addOneClick() {
+      if (paused) return;
+      balls.push(oneBallData(balls.length));
+      // victory = false;
+      createSvgBalls();
+    }
+
+    function removeOneClick() {
+      if (paused) return;
+      if (balls.length <= 1) return;
+      ballDead(balls.shift());
+    }
+
+    function pauseClick(evt) {
+      if (gameOver) return;
+      paused = !paused;
+      showGameOver();
+    }
+
+    function restartClick(evt) {
+      if (!gameOver) {
+        clearInterval(gameLoopTimer);
+        gameOver = true;
+      }
+      restart();
+    }
+
+    var timeoutId = 0;
+
+    function slowPaddleMove() {
+      paddleMove = Math.floor(paddleMove / 2);
+      info1.innerText = paddleMove;
+      if (paddleMove != 0) 
+        timeoutId = setTimeout(slowPaddleMove, 300);
+      else
+        timeoutId = 0;
+    }
+
+    function mouseMove(evt) {
+      if (gameOver) return;
+      (evt) || (evt = d3.event);
+      var x = evt.x, x1 = x;
+      if (x > boardX - paddleW / 2) 
+        x = boardX - paddleW / 2;
+      else if (x < paddleW / 2)
+        x = paddleW / 2;
+      x -= (paddleW / 2);
+      paddleMove = x - paddleX;
+      if (timeoutId) clearTimeout(timeoutId);
+      if (paddleMove != 0) 
+        timeoutId = setTimeout(slowPaddleMove, 300);
+      else
+        timeoutId = 0;
+      info1.innerText = paddleMove;
+      paddleX = x;
+      if (paddleX < 0) paddleX = 0;
+      if (paddleX > boardX - paddleW) paddleX = boardX - paddleW;
+      x1 -= paddleX + 5;
+      if (x1 < 0) 
+        x1 = 0;
+      else if (x1 > paddleW - 10)
+        x1 = paddleW - 10;
+      paddleGunX = x1;
+      setBulletMovement(paddleGun, paddleX + paddleGunX, paddleY - 1);
+      paddle.setAttribute("x", paddleX);
+    }
+
+    function mouseClick(evt) {
+      if (paused) return;
+      newBullet();
+    }
+
+    function KeyDown(evt) {
+      (evt) || (evt = d3.event);
+      switch (evt.keyCode) {
+        case 37:
+          paddleX -= 20;
+          if (paddleX < 0) paddleX = 0;
+          paddle.setAttribute("x", paddleX);
+          setBulletMovement(paddleGun, paddleX + paddleGunX, paddleY - 1);
+          break;
+        case 39:
+          paddleX += 20;
+          if (paddleX > boardX - paddleW) paddleX = boardX - paddleW;
+          paddle.setAttribute("x", paddleX);
+          setBulletMovement(paddleGun, paddleX + paddleGunX, paddleY - 1);
+          break;
+        case 32: //space
+          if (paused) return;
+          newBullet();
+          break;
+        case 65: //'a'
+          addOneClick();
+          break;
+        case 68: //'d'
+          removeOneClick();
+          break;
+      }
+    }
+  </script>
+</html>
+
