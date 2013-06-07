@@ -1,0 +1,91 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+	<title>wait ring</title>
+    
+    <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+
+    <script src="waitRing.js"></script>
+</head>
+
+<body style='background-color: silver'>
+  <style>
+  .div0 {
+  	width: 300px;
+  	height: 100px;
+  	border-width: 1px;
+  	border-color: black;
+  	/*background-color: gray;*/
+  	border-style: outset;
+    }
+  .div1 {
+  	width: 300px;
+  	height: 100px;
+  	border-width: 1px;
+  	border-color: black;
+  	background-color: silver;
+  	border-style: outset;
+    }
+  </style>
+	<div>
+    <div class='div1' id='div1'>click to change background-color</div>
+    <div class='div0'>
+      <button id='btnPause'> pause </button>
+      <button id='btnClose'> close </button>
+      <select id="colors">
+				<option value="white" selected='true'>white</option>
+				<option value="gray">gray</option>
+				<option value="red">red</option>
+				<option value="blue">blue</option>
+				<option value="yellow">yellow</option>
+				<option value="lime">lime</option>
+				<option value="fuchsia">fuchsia</option>
+				<option value="maroon">maroon</option>
+				<option value="navy">navy</option>
+				<option value="olive">olive</option>
+				<option value="purple">purple</option>
+				<option value="teal">teal</option>
+				<option value="silver">silver</option>
+				<option value="black">black</option>
+      </select>
+      <button id='btnShow'> show </button>
+    </div>	
+  </div>
+</body>
+
+<script>
+  var testRing;
+
+  function showRing() {
+    closeClick(); 
+    testRing = createWaitRing(div1, 30, colors.value);
+    testRing.pos(100,30);
+  }
+  function pauseClick() {
+    if (testRing) testRing.frozen = !testRing.frozen;
+  }
+  function closeClick() {
+  	if (testRing) {
+  	  testRing.free();
+  	  testRing = null;
+  	}
+  }
+  function showClick() {
+  	showRing();
+  }
+  function divClick() {
+  	$(div1).css('background-color', colors.value);
+  }
+
+  btnPause.onclick = pauseClick;
+  btnClose.onclick = closeClick;
+  btnShow.onclick = colors.onchange = showClick;
+  div1.onclick = divClick;
+
+  // showRing();
+  testRing = createWaitRing();
+  // testRing.pos(100, 30);
+</script>
+
+</html>
